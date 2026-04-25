@@ -2,7 +2,9 @@ node_modules/
 __pycache__/
 .pytest_cache/
 .venv/
+.env
 .env.local
+frontend/.env
 frontend/.env.local
 *.pyc
 quiz_arena.db

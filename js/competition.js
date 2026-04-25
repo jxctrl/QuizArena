@@ -178,14 +178,22 @@ function handleTimeout() {
   answered = true;
   timeoutCount++;
 
+  const question = getCurrentQuestion();
   const options = document.querySelectorAll('.option');
-  options.forEach((option) => option.classList.add('answered'));
-  const correct = getCurrentQuestion().correct_answer_index;
-  const correctEl = options[correct];
-  if (correctEl) correctEl.classList.add('timeout');
+  options.forEach((option) => { option.classList.add('answered'); option.style.pointerEvents = 'none'; });
 
-  showFlash('⏱️');
-  setTimeout(advanceQuestion, 1800);
+  // Use a dummy out-of-range index (25) so the server tells us the correct answer
+  window.apiClient.post(
+    `/questions/${question.id}/check`,
+    { answer_index: 25 },
+    { auth: true }
+  ).then((result) => {
+    const correctEl = options[result.correct_answer_index];
+    if (correctEl) correctEl.classList.add('timeout');
+  }).catch(() => {}).finally(() => {
+    showFlash('⏱️');
+    setTimeout(advanceQuestion, 1800);
+  });
 }
 
 function selectAnswer(selected) {
@@ -193,26 +201,38 @@ function selectAnswer(selected) {
   answered = true;
   clearInterval(timer);
 
-  const correct = getCurrentQuestion().correct_answer_index;
+  const question = getCurrentQuestion();
   const options = document.querySelectorAll('.option');
-  options.forEach((option) => option.classList.add('answered'));
-  const selectedEl = options[selected];
-  const correctEl = options[correct];
+  options.forEach((option) => { option.classList.add('answered'); option.style.pointerEvents = 'none'; });
 
-  if (selected === correct) {
-    if (selectedEl) selectedEl.classList.add('correct');
-    score += 1000;
-    correctCount++;
-    showFlash('✅');
-  } else {
-    if (selectedEl) selectedEl.classList.add('wrong');
-    if (correctEl) correctEl.classList.add('correct');
-    wrongCount++;
-    showFlash('❌');
-  }
+  window.apiClient.post(
+    `/questions/${question.id}/check`,
+    { answer_index: selected },
+    { auth: true }
+  ).then((result) => {
+    const correct = result.correct_answer_index;
+    const selectedEl = options[selected];
+    const correctEl = options[correct];
 
-  document.getElementById('liveScore').textContent = score.toLocaleString();
-  setTimeout(advanceQuestion, 1500);
+    if (result.correct) {
+      if (selectedEl) selectedEl.classList.add('correct');
+      score += 1000;
+      correctCount++;
+      showFlash('✅');
+    } else {
+      if (selectedEl) selectedEl.classList.add('wrong');
+      if (correctEl) correctEl.classList.add('correct');
+      wrongCount++;
+      showFlash('❌');
+    }
+
+    document.getElementById('liveScore').textContent = score.toLocaleString();
+    setTimeout(advanceQuestion, 1500);
+  }).catch(() => {
+    // Restore so user can retry
+    answered = false;
+    options.forEach((option) => { option.classList.remove('answered'); option.style.pointerEvents = ''; });
+  });
 }
 
 function showFlash(icon) {

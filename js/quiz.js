@@ -188,26 +188,41 @@ function selectAnswer(selected) {
   if (answered) return;
   answered = true;
 
-  const correct = getCurrentQuestion().correct_answer_index;
+  const question = getCurrentQuestion();
   const options = document.querySelectorAll('.option');
   options.forEach((option) => option.classList.add('answered'));
 
-  const selectedEl = options[selected];
-  const correctEl = options[correct];
+  // Disable pointer events while waiting for server response
+  options.forEach((option) => { option.style.pointerEvents = 'none'; });
 
-  if (selected === correct) {
-    if (selectedEl) selectedEl.classList.add('correct');
-    score++;
-  } else {
-    if (selectedEl) selectedEl.classList.add('wrong');
-    if (correctEl) correctEl.classList.add('correct');
-  }
+  window.apiClient.post(
+    `/questions/${question.id}/check`,
+    { answer_index: selected },
+    { auth: true }
+  ).then((result) => {
+    const correct = result.correct_answer_index;
+    const selectedEl = options[selected];
+    const correctEl = options[correct];
 
-  document.getElementById('scoreCounter').textContent = `${t('scoreLabel')} ${score}`;
-  document.getElementById('nextBtn').classList.add('visible');
+    if (result.correct) {
+      if (selectedEl) selectedEl.classList.add('correct');
+      score++;
+    } else {
+      if (selectedEl) selectedEl.classList.add('wrong');
+      if (correctEl) correctEl.classList.add('correct');
+    }
 
-  const isLast = currentIndex === questions.length - 1;
-  document.getElementById('nextBtn').textContent = isLast ? t('seeResults') : t('nextBtn');
+    document.getElementById('scoreCounter').textContent = `${t('scoreLabel')} ${score}`;
+    document.getElementById('nextBtn').classList.add('visible');
+
+    const isLast = currentIndex === questions.length - 1;
+    document.getElementById('nextBtn').textContent = isLast ? t('seeResults') : t('nextBtn');
+  }).catch(() => {
+    // On network error, restore interactivity so user can retry
+    answered = false;
+    options.forEach((option) => { option.classList.remove('answered'); option.style.pointerEvents = ''; });
+    setMessage(t('networkError') || 'Network error — please try again.', 'error');
+  });
 }
 
 function nextQuestion() {

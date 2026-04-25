@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.question import Question
-from app.schemas.question import AdminQuestionCreate, QuestionResponse
+from app.schemas.question import AdminQuestionCreate, AnswerCheckResponse, QuestionResponse
 
 
 def serialize_question(question: Question, language: str) -> QuestionResponse:
@@ -14,7 +14,6 @@ def serialize_question(question: Question, language: str) -> QuestionResponse:
             subject=question.subject,
             question_text=question.question_text_uz,
             options=list(question.options_uz),
-            correct_answer_index=question.correct_answer_index,
         )
 
     return QuestionResponse(
@@ -22,6 +21,15 @@ def serialize_question(question: Question, language: str) -> QuestionResponse:
         subject=question.subject,
         question_text=question.question_text_en,
         options=list(question.options_en),
+    )
+
+
+def check_answer(db: Session, question_id: int, answer_index: int) -> AnswerCheckResponse | None:
+    question = db.get(Question, question_id)
+    if question is None:
+        return None
+    return AnswerCheckResponse(
+        correct=answer_index == question.correct_answer_index,
         correct_answer_index=question.correct_answer_index,
     )
 

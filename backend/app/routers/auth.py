@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -13,6 +15,7 @@ from app.schemas.user import UserPublic
 from app.services.auth_service import authenticate_google_user, authenticate_user, register_user, verify_google_credential
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 def build_token_response(user) -> TokenResponse:
@@ -33,7 +36,8 @@ def build_token_response(user) -> TokenResponse:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("10/minute")
+def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
     try:
         user = register_user(db, payload)
     except ValueError as exc:
@@ -43,7 +47,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenRe
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("20/minute")
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = authenticate_user(db, payload)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
@@ -52,7 +57,8 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
 
 
 @router.post("/google", response_model=TokenResponse)
-def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("20/minute")
+def google_auth(request: Request, payload: GoogleAuthRequest, db: Session = Depends(get_db)) -> TokenResponse:
     if not settings.google_client_id:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -81,3 +87,4 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)) -> To
 @router.get("/config")
 def auth_config() -> dict[str, str]:
     return {"google_client_id": settings.google_client_id}
+

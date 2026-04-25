@@ -3,7 +3,8 @@ from __future__ import annotations
 import base64
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -20,7 +21,7 @@ MAX_AVATAR_SIZE = 2 * 1024 * 1024  # 2 MB
 
 
 class UsernameUpdate(BaseModel):
-    username: str
+    username: str = Field(min_length=3, max_length=50)
 
 
 @router.get("/me", response_model=UserProfileResponse)
@@ -35,17 +36,11 @@ def update_me(
     db: Session = Depends(get_db),
 ) -> UserProfileResponse:
     username = payload.username.strip()
-    if len(username) < 3:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username must be at least 3 characters.")
-    if len(username) > 50:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username must be 50 characters or fewer.")
 
-    from sqlalchemy import func, select
-    from app.models.user import User as UserModel
     conflict = db.scalar(
-        select(UserModel).where(
-            func.lower(UserModel.username) == username.lower(),
-            UserModel.id != user.id,
+        select(User).where(
+            func.lower(User.username) == username.lower(),
+            User.id != user.id,
         )
     )
     if conflict:

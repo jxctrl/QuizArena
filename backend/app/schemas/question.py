@@ -4,11 +4,11 @@ from pydantic import BaseModel, Field
 
 
 class QuestionResponse(BaseModel):
+    """Public question — answer index is intentionally omitted."""
     id: int
     subject: str
     question_text: str
     options: list[str]
-    correct_answer_index: int
 
 
 class QuestionListResponse(BaseModel):
@@ -16,6 +16,15 @@ class QuestionListResponse(BaseModel):
     language: str
     count: int
     questions: list[QuestionResponse]
+
+
+class AnswerCheckRequest(BaseModel):
+    answer_index: int = Field(ge=0, le=25)
+
+
+class AnswerCheckResponse(BaseModel):
+    correct: bool
+    correct_answer_index: int
 
 
 class AdminQuestionCreate(BaseModel):

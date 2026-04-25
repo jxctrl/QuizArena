@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.question import QuestionListResponse
-from app.services.question_service import get_questions
+from app.dependencies.auth import get_current_user
+from app.models.user import User
+from app.schemas.question import AnswerCheckRequest, AnswerCheckResponse, QuestionListResponse
+from app.services.question_service import check_answer, get_questions
 
 router = APIRouter(tags=["questions"])
 
@@ -35,3 +37,19 @@ def fetch_questions(
     if not questions:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No questions found for that subject.")
     return QuestionListResponse(subject=subject.strip().lower(), language=lang, count=len(questions), questions=questions)
+
+
+@router.post("/questions/{question_id}/check", response_model=AnswerCheckResponse)
+def check_question_answer(
+    question_id: int,
+    payload: AnswerCheckRequest,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AnswerCheckResponse:
+    """Check whether a submitted answer is correct.
+    Requires authentication to prevent automated answer harvesting.
+    """
+    result = check_answer(db, question_id, payload.answer_index)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found.")
+    return result
